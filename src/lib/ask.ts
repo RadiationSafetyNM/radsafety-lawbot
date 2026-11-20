@@ -3,6 +3,7 @@
 // 임베딩 규약(모델·taskType·차원·재정규화)이 어긋나면 에러 없이 검색 순위만 나빠진다.
 import { env } from './env';
 import { SYS, SYS_UPCOMING } from './prompt';
+import { pending, type Pending } from './tracker';
 
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
 const EMB_MODEL = 'gemini-embedding-001';
@@ -28,7 +29,7 @@ export type Source = {
     effectiveTo: string | null;
     content: string;
 };
-export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[] };
+export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[] };
 
 const title = (r: Row) =>
     `${r.metadata.law_title ?? '?'} ${r.metadata.article ?? ''}${r.metadata.subunit ?? ''}`.trim();
@@ -125,5 +126,8 @@ export async function ask(question: string, asOf?: string): Promise<Answer> {
         ? (await rpc<Row[]>('lawbot_upcoming', { chunk_ids: hits.map((h) => h.chunk_id), as_of: when })).slice(0, UP_MAX)
         : [];
     const answer = await generate(buildPrompt(question, hits, up, when));
-    return { answer, asOf: when, sources: hits.map(toSource), upcoming: up.map(toSource) };
+    return {
+        answer, asOf: when, sources: hits.map(toSource), upcoming: up.map(toSource),
+        pending: pending(question, hits),   // 공포 전 동향 — 생성에는 넘기지 않았다
+    };
 }

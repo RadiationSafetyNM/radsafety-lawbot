@@ -1,0 +1,32 @@
+[
+ {
+  "id": "2026-nssc-lens-dose-limit",
+  "title": "방사선작업종사자 수정체 등가선량한도 강화",
+  "law": "원자력안전법 시행령",
+  "targets": [
+   "별표1"
+  ],
+  "keywords": [
+   "수정체"
+  ],
+  "current": "연간 150 mSv",
+  "proposed": "연간 50 mSv를 넘지 않는 범위에서 5년간 100 mSv",
+  "status": "입법예고 종료(공포 전)",
+  "timeline": [
+   {
+    "date": "2026-06-25",
+    "event": "원자력안전위원회 제2026-10회 회의 심의·의결"
+   },
+   {
+    "date": "2026-09-01",
+    "event": "입법예고 시작(~2026-10-12, 보도상 '1일부터')"
+   }
+  ],
+  "expected_effective": "2027-01-01",
+  "confidence": "보도 기준(원문 미확인)",
+  "sources": [
+   "https://www.energydaily.co.kr/news/articleView.html?idxno=202794"
+  ],
+  "closed": false
+ }
+]

@@ -21,6 +21,7 @@ const today = todayKST();
     <section id="out" hidden>
         <p id="asofnote" class="sub"></p>
         <div class="card"><div id="answer"></div></div>
+        <div id="pending"></div>
         <h2>근거 조문 <span class="sub">(기준일에 시행 중)</span></h2>
         <div id="sources"></div>
         <div id="upwrap" hidden>
@@ -43,6 +44,13 @@ h2 .sub { font-weight: 400; }
     padding: 10px 12px; border-radius: 6px; }
 #answer :global(.basis) { color: var(--sub); font-size: .92rem; border-top: 1px solid var(--line);
     padding-top: 10px; margin-bottom: 0; }
+:global(.pend) { margin-top: 12px; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px;
+    background: var(--card); }
+:global(.pend .tag) { display: inline-block; font-size: .78rem; font-weight: 700; color: var(--sub);
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-bottom: 6px; }
+:global(.pend p) { margin: 4px 0; }
+:global(.pend .small) { color: var(--sub); font-size: .85rem; }
+:global(.pend a) { color: var(--accent); }
 :global(details.src) { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     padding: 10px 14px; margin-bottom: 8px; }
 :global(details.src summary) { cursor: pointer; font-weight: 600; }
@@ -54,6 +62,18 @@ h2 .sub { font-weight: 400; }
 
 <script>
 type Src = { title: string; effectiveFrom: string; effectiveTo: string | null; content: string };
+type Pend = { title: string; law: string; current: string; proposed: string; status: string;
+    expected_effective: string; confidence: string; timeline: { date: string; event: string }[]; sources: string[] };
+function pendCard(p: Pend) {
+    const tl = p.timeline.map((t) => `${esc(t.date)} ${esc(t.event)}`).join(' · ');
+    const src = p.sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">출처${p.sources.length > 1 ? i + 1 : ''}</a>`).join(' ');
+    return `<div class="pend"><span class="tag">입법 진행 중 — 확정 아님</span>
+        <p><strong>${esc(p.title)}</strong> (${esc(p.law)})</p>
+        <p>현행 ${esc(p.current)} → 개정안 ${esc(p.proposed)}</p>
+        <p class="small">${esc(p.status)}${p.expected_effective ? ` · 시행 목표 ${kdate(p.expected_effective)}` : ''} · ${esc(p.confidence)}</p>
+        <p class="small">${tl} ${src}</p>
+        <p class="small">위 답변은 현행 법령 기준입니다. 이 내용은 공포 전이라 답변에 반영하지 않았습니다.</p></div>`;
+}
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 const kdate = (d: string) => { const [y, m, dd] = d.split('-'); return `${y}년 ${+m}월 ${+dd}일`; };
@@ -91,6 +111,7 @@ $('f').addEventListener('submit', async (e) => {
         if (!r.ok) throw new Error(d.error ?? '오류가 발생했습니다');
         $('asofnote').textContent = d.asOf === asof.dataset.today ? '' : `기준일 ${kdate(d.asOf)} 로 답한 결과입니다.`;
         $('answer').innerHTML = renderAnswer(d.answer);
+        $('pending').innerHTML = (d.pending ?? []).map(pendCard).join('');
         $('sources').innerHTML = d.sources.map((s: Src) => card(s, false)).join('');
         $('upcoming').innerHTML = d.upcoming.map((s: Src) => card(s, true)).join('');
         $('upwrap').hidden = d.upcoming.length === 0;
