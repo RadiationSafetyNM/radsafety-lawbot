@@ -32,8 +32,28 @@ export type Source = {
 };
 export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[] };
 
-const title = (r: Row) =>
-    `${r.metadata.law_title ?? '?'} ${r.metadata.article ?? ''}${r.metadata.subunit ?? ''}`.trim();
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+
+/** 근거 카드·프롬프트 [자료 n] 제목. _ask.py 의 disp() 와 같은 규칙.
+ *  조문: "법령 제N조제M항(조 제목)" — 항 라벨 ⑤ 는 '제5항' 으로 푼다.
+ *  별표: "법령 별표N 표1 행1~10 — 별표 제목(제N조 관련)". 별표 청크의 article 은 위임 조문이라
+ *  그걸 제목에 쓰면 별표가 조문으로 보인다(2026-11-21 수정 전 결함). */
+export function title(r: Pick<Row, 'chunk_id' | 'metadata'>): string {
+    const m = r.metadata;
+    const law = m.law_title ?? '?', at = m.article_title ?? '';
+    let sub = m.subunit ?? '';
+    if (m.attachment_no) {
+        let t = `${law} ${m.attachment_no}`;
+        if (sub) t += ` ${sub}`;
+        else {
+            const pm = /_p(\d+)$/.exec(r.chunk_id);
+            if (pm) t += ` (${pm[1]}번째 부분)`;
+        }
+        return at ? `${t} — ${at}` : t;
+    }
+    sub = sub.replace(new RegExp(`^([${CIRCLED}])\\s*`), (_, c: string) => `제${CIRCLED.indexOf(c) + 1}항`);
+    return `${law} ${m.article ?? ''}${sub}` + (at ? `(${at})` : '');
+}
 
 const kdate = (d: string) => {
     const [y, m, dd] = d.split('-');
