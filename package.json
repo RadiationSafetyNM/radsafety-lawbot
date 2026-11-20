@@ -1,0 +1,22 @@
+{
+  "name": "radsafety-lawbot",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "sync-prompt": "python3 scripts/sync_prompt.py"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^9.0.4",
+    "astro": "^5.16.15"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "@types/node": "^26.6.6",
+    "typescript": "^5.9.3"
+  }
+}

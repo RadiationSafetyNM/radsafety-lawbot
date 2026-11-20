@@ -1,0 +1,42 @@
+---
+const { title = '방사선안전 법령 질의' } = Astro.props;
+---
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<title>{title}</title>
+<style is:global>
+:root {
+    --bg: #f6f7f9; --card: #fff; --ink: #1b2430; --sub: #5d6b7c; --line: #dfe4ea;
+    --accent: #1f5f8b; --accent-ink: #fff; --note-bg: #fff6df; --note-line: #e6c15a; --note-ink: #5c4500;
+    --err: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #12161b; --card: #1b2129; --ink: #e7ecf2; --sub: #9aa7b6; --line: #2c3541;
+        --accent: #6db3e2; --accent-ink: #0d1721; --note-bg: #33290d; --note-line: #8a6d1c; --note-ink: #f3dc9a;
+        --err: #ff8a80;
+    }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 system-ui, -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.3rem; margin: 0 0 4px; }
+.sub { color: var(--sub); font-size: .9rem; margin: 0 0 20px; }
+textarea, input[type=password], input[type=date] { width: 100%; padding: 12px; font: inherit; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+textarea { min-height: 92px; resize: vertical; }
+button { font: inherit; font-weight: 600; padding: 10px 20px; border: 0; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.err { color: var(--err); }
+</style>
+</head>
+<body><main><slot /></main></body>
+</html>

@@ -1,0 +1,26 @@
+---
+import Base from '../layouts/Base.astro';
+import { COOKIE, codeOk, tokenFor } from '../lib/gate';
+
+let wrong = false;
+if (Astro.request.method === 'POST') {
+    const code = String((await Astro.request.formData()).get('code') ?? '');
+    if (codeOk(code)) {
+        Astro.cookies.set(COOKIE, tokenFor(code), {
+            path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:',
+            maxAge: 60 * 60 * 24 * 30,
+        });
+        return Astro.redirect('/');
+    }
+    wrong = true;
+}
+---
+<Base title="접근 코드">
+    <h1>방사선안전 법령 질의</h1>
+    <p class="sub">시험 운영 중입니다. 접근 코드를 입력해 주십시오.</p>
+    <form method="post" class="card">
+        <input type="password" name="code" placeholder="접근 코드" autofocus required />
+        {wrong && <p class="err">코드가 맞지 않습니다.</p>}
+        <p style="margin:12px 0 0"><button type="submit">들어가기</button></p>
+    </form>
+</Base>
