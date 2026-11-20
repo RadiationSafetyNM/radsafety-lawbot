@@ -4,6 +4,7 @@
 import { env } from './env';
 import { SYS, SYS_UPCOMING } from './prompt';
 import { pending, type Pending } from './tracker';
+import { expand } from './query';
 
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
 const EMB_MODEL = 'gemini-embedding-001';
@@ -120,7 +121,7 @@ const toSource = (r: Row): Source => ({
 
 export async function ask(question: string, asOf?: string): Promise<Answer> {
     const when = asOf ?? todayKST();
-    const vec = '[' + (await embedQuery(question)).map((x) => x.toFixed(7)).join(',') + ']';
+    const vec = '[' + (await embedQuery(expand(question))).map((x) => x.toFixed(7)).join(',') + ']'; // 검색에만 용어 병기
     const hits = await rpc<Row[]>('lawbot_match', { query_embedding: vec, match_count: TOPK, as_of: when });
     const up = hits.length
         ? (await rpc<Row[]>('lawbot_upcoming', { chunk_ids: hits.map((h) => h.chunk_id), as_of: when })).slice(0, UP_MAX)

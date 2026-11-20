@@ -9,7 +9,8 @@
     "preview": "astro preview",
     "check": "astro check",
     "sync-prompt": "python3 scripts/sync_prompt.py",
-    "sync-tracker": "python3 scripts/sync_tracker.py"
+    "sync-tracker": "python3 scripts/sync_tracker.py",
+    "sync-terms": "python3 scripts/sync_terms.py"
   },
   "dependencies": {
     "@astrojs/vercel": "^9.0.4",
