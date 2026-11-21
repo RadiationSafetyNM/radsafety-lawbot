@@ -8,3 +8,4 @@
 - 비밀값(`SUPABASE_SECRET_KEY`·`GEMINI_API_KEY`)은 서버 코드에서만 읽는다. `PUBLIC_` 접두로 내보내지 않는다.
 - 검증: `npx astro check` → `npm run dev` 로 `/api/ask` 왕복. 생성은 실결제(질문 1건 약 10원).
 - 프로젝트 허브(결정·남은 행동): vault `knowledge/01_projects/2026-01_RadSafety-pwa/RadSafety-lawbot/RadSafety-lawbot.md`
+- 접근 코드 시도 제한(2026-11-21): 실패 기록은 DB `lawbot_gate_fail`(`sql/001_gate_fail.sql`, Supabase SQL Editor 로 프로젝트마다 1회 적용). 15분 IP당 5회·1시간 전체 30회, DB 불가 시 막음. 운영 DB 로 옮길 때 이 SQL 도 같이 적용할 것.

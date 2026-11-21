@@ -2,6 +2,7 @@
 // 기준 구현은 radsafety-laws/scripts/_ask.py 다. 아래 상수·순서·문자열은 그 파일과 같아야 한다 —
 // 임베딩 규약(모델·taskType·차원·재정규화)이 어긋나면 에러 없이 검색 순위만 나빠진다.
 import { env } from './env';
+import { rpc } from './db';
 import { SYS, SYS_UPCOMING } from './prompt';
 import { pending, type Pending } from './tracker';
 import { expand } from './query';
@@ -80,17 +81,6 @@ async function embedQuery(q: string): Promise<number[]> {
     if (v.length !== EMB_DIM) throw new Error(`임베딩 차원 ${v.length} ≠ ${EMB_DIM}`);
     const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) + 1e-9; // 절단 후 재정규화
     return v.map((x) => x / norm);
-}
-
-async function rpc<T>(name: string, body: unknown): Promise<T> {
-    const key = env('SUPABASE_SECRET_KEY');
-    const r = await fetch(`${env('SUPABASE_URL').replace(/\/$/, '')}/rest/v1/rpc/${name}`, {
-        method: 'POST',
-        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`검색 실패 ${name} ${r.status}`);
-    return r.json();
 }
 
 function buildPrompt(q: string, hits: Row[], up: Row[], asOf: string): string {

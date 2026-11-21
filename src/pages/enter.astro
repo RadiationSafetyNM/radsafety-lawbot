@@ -1,18 +1,37 @@
 ---
 import Base from '../layouts/Base.astro';
-import { COOKIE, codeOk, tokenFor } from '../lib/gate';
+import { COOKIE, codeOk, tokenFor, whoOf, gateState, recordFail, PER_IP } from '../lib/gate';
 
-let wrong = false;
+// 클라이언트 IP — Vercel 어댑터는 clientAddress 를 준다. 없으면 프록시 헤더.
+let ip = 'unknown';
+try { ip = Astro.clientAddress; } catch {
+    ip = Astro.request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+}
+const who = whoOf(ip);
+
+let msg = '';
 if (Astro.request.method === 'POST') {
-    const code = String((await Astro.request.formData()).get('code') ?? '');
-    if (codeOk(code)) {
-        Astro.cookies.set(COOKIE, tokenFor(code), {
-            path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:',
-            maxAge: 60 * 60 * 24 * 30,
-        });
-        return Astro.redirect('/');
+    const state = await gateState(who);
+    if (state === 'ok') {
+        const code = String((await Astro.request.formData()).get('code') ?? '');
+        if (codeOk(code)) {
+            Astro.cookies.set(COOKIE, tokenFor(code), {
+                path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:',
+                maxAge: 60 * 60 * 24 * 30,
+            });
+            return Astro.redirect('/');
+        }
+        await recordFail(who);
+        await new Promise((r) => setTimeout(r, 800));   // 연속 대입을 느리게
+        msg = '코드가 맞지 않습니다.';
+    } else {
+        Astro.response.status = state === 'unknown' ? 503 : 429;
+        msg = state === 'ip'
+            ? `코드를 ${PER_IP}번 틀렸습니다. 15분 뒤에 다시 시도해 주십시오.`
+            : state === 'global'
+              ? '시도가 많아 잠시 입력을 막았습니다. 1시간 안에 다시 시도해 주십시오.'
+              : '지금은 확인할 수 없습니다. 잠시 뒤 다시 시도해 주십시오.';
     }
-    wrong = true;
 }
 ---
 <Base title="접근 코드">
@@ -20,7 +39,7 @@ if (Astro.request.method === 'POST') {
     <p class="sub">시험 운영 중입니다. 접근 코드를 입력해 주십시오.</p>
     <form method="post" class="card">
         <input type="password" name="code" placeholder="접근 코드" autofocus required />
-        {wrong && <p class="err">코드가 맞지 않습니다.</p>}
+        {msg && <p class="err">{msg}</p>}
         <p style="margin:12px 0 0"><button type="submit">들어가기</button></p>
     </form>
 </Base>
