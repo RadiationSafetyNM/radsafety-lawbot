@@ -15,6 +15,10 @@ export const GET: APIRoute = async () => {
         SUPABASE_URL: /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url),
         SUPABASE_SECRET_KEY: key.startsWith('sb_secret_'),
         trailingSpace: NAMES.some((n) => { const v = read(n) ?? ''; return v !== v.trim(); }),
+        // 헤더에 실을 값은 공백·줄바꿈·비ASCII 가 섞이면 fetch 가 요청 전에 던진다(network-error 로 보임).
+        headerSafe: Object.fromEntries(['SUPABASE_SECRET_KEY', 'GEMINI_API_KEY'].map((n) =>
+            [n, /^[\x21-\x7e]+$/.test(read(n) ?? '')])),
+        GEMINI_API_KEY_length: (read('GEMINI_API_KEY') ?? '').length,
     };
     let db: number | string = 'skipped';
     if (url && key) {
