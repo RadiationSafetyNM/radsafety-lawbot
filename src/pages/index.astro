@@ -20,6 +20,7 @@ const today = todayKST();
 
     <section id="out" hidden>
         <p id="asofnote" class="sub"></p>
+        <div id="checks"></div>
         <div class="card"><div id="answer"></div>
             <div id="fb">
                 <button type="button" id="fbopen" class="ghost">이 답변이 이상해요</button>
@@ -47,6 +48,9 @@ const today = todayKST();
 .asof { color: var(--sub); font-size: .9rem; display: flex; align-items: center; gap: 8px; }
 .asof input { width: auto; padding: 6px 8px; }
 #out { margin-top: 20px; }
+:global(.chk) { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: .9rem;
+    background: var(--note-bg); border-left: 4px solid var(--note-line); color: var(--note-ink); }
+:global(.chk p) { margin: 2px 0; }
 #fb { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
 #fb .ghost { background: transparent; color: var(--sub); border: 1px solid var(--line); font-size: .85rem; padding: 4px 10px; }
 #fb textarea { min-height: 60px; margin-top: 8px; }
@@ -123,6 +127,16 @@ function renderAnswer(text: string) {
         return `<p${cls}>${html}</p>`;
     }).join('');
 }
+type Checks = { strength: 'ok' | 'weak' | 'off'; top: number; unsupportedNumbers: string[]; uncitedRefs: string[] };
+function checksBox(c: Checks | undefined) {
+    if (!c) return '';
+    const lines: string[] = [];
+    if (c.strength === 'off') lines.push('관련 조문을 찾지 못했습니다 — 이 서비스가 다루는 방사선안전 법령 범위 밖의 질문일 수 있습니다.');
+    else if (c.strength === 'weak') lines.push('근거가 약할 수 있습니다 — 아래 근거 조문이 질문과 맞는지 직접 확인하십시오.');
+    if (c.unsupportedNumbers.length) lines.push(`근거 조문 원문에서 확인되지 않은 수치: <strong>${c.unsupportedNumbers.map(esc).join(', ')}</strong> — 원문과 대조하십시오.`);
+    if (c.uncitedRefs.length) lines.push(`「근거」에 적힌 ${c.uncitedRefs.map(esc).join(', ')} 는 검색된 조문에 없습니다 — 해당 조문을 직접 확인하십시오.`);
+    return lines.length ? `<div class="chk"><p><strong>검증 표시</strong></p>${lines.map((l) => `<p>· ${l}</p>`).join('')}</div>` : '';
+}
 function card(s: Src, upcoming: boolean) {
     const meta = upcoming
         ? `<span class="chg">${kdate(s.effectiveFrom)}부터 시행</span>`
@@ -146,6 +160,7 @@ $('f').addEventListener('submit', async (e) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? '오류가 발생했습니다');
         $('asofnote').textContent = d.asOf === asof.dataset.today ? '' : `기준일 ${kdate(d.asOf)} 로 답한 결과입니다.`;
+        $('checks').innerHTML = checksBox(d.checks);
         $('answer').innerHTML = renderAnswer(d.answer);
         last = { question, answer: d.answer, sources: d.sources, asOf: d.asOf };
         resetFb();

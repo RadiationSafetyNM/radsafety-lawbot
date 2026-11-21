@@ -10,3 +10,4 @@
 - 프로젝트 허브(결정·남은 행동): vault `knowledge/01_projects/2026-01_RadSafety-pwa/RadSafety-lawbot/RadSafety-lawbot.md`
 - 접근 코드 시도 제한(2026-11-21): 실패 기록은 DB `lawbot_gate_fail`(`sql/001_gate_fail.sql`, Supabase SQL Editor 로 프로젝트마다 1회 적용). 15분 IP당 5회·1시간 전체 30회, DB 불가 시 막음. 운영 DB 로 옮길 때 이 SQL 도 같이 적용할 것.
 - "이상한 답변" 신고(2026-11-22): 답변 아래 버튼 → `/api/feedback` → DB `lawbot_feedback`(`sql/002_feedback.sql`). 목록 = `npm run feedback`(`--all`·`--done <id…>`). 신고는 용어 사전·평가셋·프롬프트 개선의 입력.
+- 검증 표시(2026-11-22, 전문가 보조용 — 막지 않고 경고): `src/lib/verify.ts` ↔ `radsafety-laws/scripts/_verify.py` 한 쌍. 근거 강도(OFF 0.66·WEAK 0.72)·원문에 없는 수치·「근거」 인용 대조. 정규식 경계는 파이썬 \w 를 `\p{L}\p{N}_`(u 플래그)로 흉내 낸다.

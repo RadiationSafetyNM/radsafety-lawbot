@@ -6,6 +6,7 @@ import { rpc } from './db';
 import { SYS, SYS_UPCOMING } from './prompt';
 import { pending, type Pending } from './tracker';
 import { expand } from './query';
+import { check, type Checks } from './verify';
 
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
 const EMB_MODEL = 'gemini-embedding-001';
@@ -31,7 +32,7 @@ export type Source = {
     effectiveTo: string | null;
     content: string;
 };
-export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[] };
+export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[]; checks: Checks };
 
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 
@@ -140,5 +141,8 @@ export async function ask(question: string, asOf?: string): Promise<Answer> {
     return {
         answer, asOf: when, sources: hits.map(toSource), upcoming: up.map(toSource),
         pending: pending(question, hits),   // 공포 전 동향 — 생성에는 넘기지 않았다
+        // 검증 표시(전문가 보조용 — 막지 않고 경고만). _verify.py 와 같은 규칙.
+        checks: check(answer, hits.map((h) => ({ similarity: h.similarity ?? 0, title: title(h), content: h.content })),
+                      up.map((u) => u.content)),
     };
 }
