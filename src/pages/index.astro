@@ -20,7 +20,17 @@ const today = todayKST();
 
     <section id="out" hidden>
         <p id="asofnote" class="sub"></p>
-        <div class="card"><div id="answer"></div></div>
+        <div class="card"><div id="answer"></div>
+            <div id="fb">
+                <button type="button" id="fbopen" class="ghost">이 답변이 이상해요</button>
+                <div id="fbform" hidden>
+                    <textarea id="fbnote" maxlength="1000" placeholder="무엇이 이상한지 한 줄로 적어 주십시오(선택). 예) 근거 조문이 틀림, 숫자가 다름"></textarea>
+                    <p class="small">질문·답변·근거 조문 제목이 개선용으로 기록됩니다. 개인정보는 적지 마십시오.</p>
+                    <button type="button" id="fbsend">보내기</button>
+                </div>
+                <p id="fbdone" class="small" hidden></p>
+            </div>
+        </div>
         <div id="pending"></div>
         <h2>근거 조문 <span class="sub">(기준일에 시행 중)</span></h2>
         <div id="sources"></div>
@@ -37,6 +47,10 @@ const today = todayKST();
 .asof { color: var(--sub); font-size: .9rem; display: flex; align-items: center; gap: 8px; }
 .asof input { width: auto; padding: 6px 8px; }
 #out { margin-top: 20px; }
+#fb { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+#fb .ghost { background: transparent; color: var(--sub); border: 1px solid var(--line); font-size: .85rem; padding: 4px 10px; }
+#fb textarea { min-height: 60px; margin-top: 8px; }
+#fb .small { color: var(--sub); font-size: .82rem; margin: 6px 0; }
 h2 { font-size: 1rem; margin: 24px 0 8px; }
 h2 .sub { font-weight: 400; }
 #answer :global(p) { margin: 0 0 .8em; white-space: pre-wrap; }
@@ -75,6 +89,28 @@ function pendCard(p: Pend) {
         <p class="small">위 답변은 현행 법령 기준입니다. 이 내용은 공포 전이라 답변에 반영하지 않았습니다.</p></div>`;
 }
 const $ = (id: string) => document.getElementById(id)!;
+let last: { question: string; answer: string; sources: Src[]; asOf: string } | null = null;
+function resetFb() {
+    $('fbopen').hidden = false; $('fbform').hidden = true; $('fbdone').hidden = true;
+    ($('fbnote') as HTMLTextAreaElement).value = '';
+}
+$('fbopen').addEventListener('click', () => { $('fbopen').hidden = true; $('fbform').hidden = false; });
+$('fbsend').addEventListener('click', async () => {
+    if (!last) return;
+    const btn = $('fbsend') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+        const r = await fetch('/api/feedback', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...last, sources: last.sources.map((s) => ({ title: s.title, effectiveFrom: s.effectiveFrom })),
+                note: ($('fbnote') as HTMLTextAreaElement).value }),
+        });
+        const d = await r.json().catch(() => ({}));
+        $('fbdone').textContent = r.ok ? '기록했습니다. 고맙습니다.' : (d.error ?? '기록하지 못했습니다.');
+        if (r.ok) $('fbform').hidden = true;
+        $('fbdone').hidden = false;
+    } finally { btn.disabled = false; }
+});
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 const kdate = (d: string) => { const [y, m, dd] = d.split('-'); return `${y}년 ${+m}월 ${+dd}일`; };
 
@@ -111,6 +147,8 @@ $('f').addEventListener('submit', async (e) => {
         if (!r.ok) throw new Error(d.error ?? '오류가 발생했습니다');
         $('asofnote').textContent = d.asOf === asof.dataset.today ? '' : `기준일 ${kdate(d.asOf)} 로 답한 결과입니다.`;
         $('answer').innerHTML = renderAnswer(d.answer);
+        last = { question, answer: d.answer, sources: d.sources, asOf: d.asOf };
+        resetFb();
         $('pending').innerHTML = (d.pending ?? []).map(pendCard).join('');
         $('sources').innerHTML = d.sources.map((s: Src) => card(s, false)).join('');
         $('upcoming').innerHTML = d.upcoming.map((s: Src) => card(s, true)).join('');
