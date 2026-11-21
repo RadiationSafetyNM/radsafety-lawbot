@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 
-// 배포 점검용 — 값은 절대 내보내지 않는다. 환경값이 "있나/형식이 맞나"와 DB 왕복 상태 코드만.
+// 배포 점검용 — 값은 절대 내보내지 않는다. 환경값이 "있나/형식이 맞나"와 DB·Gemini 왕복 상태 코드만.
 // 접근 코드 없이 열린다(미들웨어 예외). 2026-11-21 첫 배포 때 503 원인을 콘솔 없이 가리려고 신설.
 const NAMES = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'GEMINI_API_KEY', 'LAWBOT_ACCESS_CODE'] as const;
 
@@ -29,8 +29,22 @@ export const GET: APIRoute = async () => {
             db = 'network-error';
         }
     }
-    const ok = Object.values(env).every(Boolean) && shape.SUPABASE_URL && shape.SUPABASE_SECRET_KEY && db === 200;
-    return new Response(JSON.stringify({ ok, env, shape, db }), {
+    // Gemini 키 — 모델 목록 조회(과금 없음) 상태 코드만, 그리고 임베딩·생성 모델에 접근 가능한지.
+    let gemini: number | string = 'skipped';
+    const gk = read('GEMINI_API_KEY') ?? '';
+    if (gk) {
+        try {
+            const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001', {
+                headers: { 'x-goog-api-key': gk },
+            });
+            gemini = r.status;
+        } catch {
+            gemini = 'network-error';
+        }
+    }
+    const ok = Object.values(env).every(Boolean) && shape.SUPABASE_URL && shape.SUPABASE_SECRET_KEY
+        && db === 200 && gemini === 200;
+    return new Response(JSON.stringify({ ok, env, shape, db, gemini }), {
         status: ok ? 200 : 500,
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
