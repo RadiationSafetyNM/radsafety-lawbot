@@ -47,7 +47,7 @@ export type Source = {
 type GuideRow = { chunk_id: string; content: string; similarity: number;
     metadata: Record<string, unknown> & { cites_changed?: Changed[] } };
 /** 지침이 인용한 조문 중 발간(2022-10) 뒤 개정됐거나 바뀔 예정인 것. 인입 때 계산해 둔 값이다. */
-export type Changed = { cite: string; amended: string | null; upcoming: string | null };
+export type Changed = { cite: string; amended: string | null; upcoming: string | null; gone?: boolean };
 export type Guide = { answer: string; sources: { title: string; content: string }[]; changed: Changed[] };
 export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[]; checks: Checks;
     guide: Guide | null };
