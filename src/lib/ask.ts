@@ -3,7 +3,7 @@
 // 임베딩 규약(모델·taskType·차원·재정규화)이 어긋나면 에러 없이 검색 순위만 나빠진다.
 import { env } from './env';
 import { rpc } from './db';
-import { SYS, SYS_UPCOMING } from './prompt';
+import { SYS, SYS_UPCOMING, SYS_GUIDE } from './prompt';
 import { pending, type Pending } from './tracker';
 import { expand } from './query';
 import { check, type Checks } from './verify';
@@ -16,6 +16,10 @@ const TOPK = 5;
 const CAP = 20000;
 const UP_MAX = 8;
 const UP_CAP = 6000;
+// 지침(수검 가이드) — 법령과 다른 표·다른 답. 유사도가 이 값을 넘는 조각이 있을 때만 지침 답을 만든다.
+// 잠정값(2026-11-27, _ask.py 와 같다). 지침 평가 문항으로 다시 정할 것.
+const GUIDE_K = 3;
+const GUIDE_MIN = 0.7;
 
 type Row = {
     chunk_id: string;
@@ -32,7 +36,13 @@ export type Source = {
     effectiveTo: string | null;
     content: string;
 };
-export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[]; checks: Checks };
+type GuideRow = { chunk_id: string; content: string; similarity: number;
+    metadata: Record<string, unknown> & { cites_changed?: Changed[] } };
+/** 지침이 인용한 조문 중 발간(2022-10) 뒤 개정됐거나 바뀔 예정인 것. 인입 때 계산해 둔 값이다. */
+export type Changed = { cite: string; amended: string | null; upcoming: string | null };
+export type Guide = { answer: string; sources: { title: string; content: string }[]; changed: Changed[] };
+export type Answer = { answer: string; asOf: string; sources: Source[]; upcoming: Source[]; pending: Pending[]; checks: Checks;
+    guide: Guide | null };
 
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 
@@ -130,6 +140,34 @@ const toSource = (r: Row): Source => ({
     content: r.content,
 });
 
+/** 지침 조각 제목. _ask.py 의 guide_title() 과 같은 규칙. */
+function guideTitle(g: GuideRow): string {
+    const m = g.metadata as Record<string, string>;
+    const crumbs = [m.part, m.section || m.chapter, m.subsection].filter(Boolean);
+    return `수검 가이드(2022) ${crumbs.join(' > ')} (p.${m.printed_pages ?? '?'})`;
+}
+
+/** 지침 답. 관련 조각이 없으면 null(둘째 칸을 띄우지 않는다). 법령 답과 독립이며, 실패해도 법령 답은 나간다. */
+async function askGuide(question: string, vec: string): Promise<Guide | null> {
+    try {
+        const hits = (await rpc<GuideRow[]>('lawbot_guide_match', { query_embedding: vec, match_count: GUIDE_K }))
+            .filter((g) => g.similarity >= GUIDE_MIN);
+        if (!hits.length) return null;
+        const body = hits.map((g, i) => `[지침 ${i + 1}] ${guideTitle(g)}\n${g.content.slice(0, CAP)}`).join('\n\n---\n\n');
+        const answer = await generate(`${SYS_GUIDE}\n\n[지침 자료]\n${body}\n\n[질문]\n${question}`);
+        // 모델이 관련 없다고 본 경우 — 빈 칸을 띄우지 않는다(_ask.py 와 같은 규칙)
+        if (answer.includes('「지침 근거」 없음') || answer.slice(0, 40).includes('해당 내용이 없습니다')) return null;
+        const changed: Changed[] = [];
+        for (const g of hits)
+            for (const c of g.metadata.cites_changed ?? [])
+                if (!changed.some((x) => x.cite === c.cite)) changed.push(c);
+        return { answer, changed, sources: hits.map((g) => ({ title: guideTitle(g), content: g.content })) };
+    } catch (e) {
+        console.error('[lawbot] 지침 답 실패', e);
+        return null;
+    }
+}
+
 export async function ask(question: string, asOf?: string): Promise<Answer> {
     const when = asOf ?? todayKST();
     const vec = '[' + (await embedQuery(expand(question))).map((x) => x.toFixed(7)).join(',') + ']'; // 검색에만 용어 병기
@@ -137,8 +175,10 @@ export async function ask(question: string, asOf?: string): Promise<Answer> {
     const up = hits.length
         ? (await rpc<Row[]>('lawbot_upcoming', { chunk_ids: hits.map((h) => h.chunk_id), as_of: when })).slice(0, UP_MAX)
         : [];
+    const guideP = askGuide(question, vec);      // 법령 답과 나란히 만든다(기다리는 시간을 겹친다)
     const answer = await generate(buildPrompt(question, hits, up, when));
     return {
+        guide: await guideP,                     // 지침 답(없으면 null) — 법령 답과 섞지 않는다
         answer, asOf: when, sources: hits.map(toSource), upcoming: up.map(toSource),
         pending: pending(question, hits),   // 공포 전 동향 — 생성에는 넘기지 않았다
         // 검증 표시(전문가 보조용 — 막지 않고 경고만). _verify.py 와 같은 규칙.

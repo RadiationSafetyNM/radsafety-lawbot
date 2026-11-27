@@ -34,6 +34,12 @@ const today = todayKST();
             </div>
         </div>
         <div id="pending"></div>
+        <div id="guide" hidden>
+            <h2>수검 가이드 <span class="sub">(KINS 2022년판 · 법령 아님 · 강제성 없음)</span></h2>
+            <div id="gchanged"></div>
+            <div class="card guide"><div id="ganswer"></div></div>
+            <div id="gsources"></div>
+        </div>
         <h2>근거 조문 <span class="sub">(기준일에 시행 중)</span></h2>
         <div id="sources"></div>
         <div id="upwrap" hidden>
@@ -60,7 +66,10 @@ const today = todayKST();
 #fb .small { color: var(--sub); font-size: .82rem; margin: 6px 0; }
 h2 { font-size: 1rem; margin: 24px 0 8px; }
 h2 .sub { font-weight: 400; }
-#answer :global(p) { margin: 0 0 .8em; white-space: pre-wrap; }
+#answer :global(p), #ganswer :global(p) { margin: 0 0 .8em; white-space: pre-wrap; }
+.guide { border-style: dashed; }
+#ganswer :global(.basis) { color: var(--sub); font-size: .92rem; border-top: 1px solid var(--line);
+    padding-top: 10px; margin-bottom: 0; }
 #answer :global(.note) { background: var(--note-bg); border-left: 4px solid var(--note-line); color: var(--note-ink);
     padding: 10px 12px; border-radius: 6px; }
 #answer :global(.basis) { color: var(--sub); font-size: .92rem; border-top: 1px solid var(--line);
@@ -122,11 +131,11 @@ const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
 const kdate = (d: string) => { const [y, m, dd] = d.split('-'); return `${y}년 ${+m}월 ${+dd}일`; };
 
 function renderAnswer(text: string) {
-    return text.split(/\n{2,}|\n(?=※|「근거」)/).map((para) => {
+    return text.split(/\n{2,}|\n(?=※|「근거」|「지침 근거」)/).map((para) => {
         const t = para.trim();
         if (!t) return '';
         const html = esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        const cls = t.startsWith('※') ? ' class="note"' : t.startsWith('「근거」') ? ' class="basis"' : '';
+        const cls = t.startsWith('※') ? ' class="note"' : t.startsWith('「근거」') || t.startsWith('「지침 근거」') ? ' class="basis"' : '';
         return `<p${cls}>${html}</p>`;
     }).join('');
 }
@@ -139,6 +148,13 @@ function checksBox(c: Checks | undefined) {
     if (c.unsupportedNumbers.length) lines.push(`근거 조문 원문에서 확인되지 않은 수치: <strong>${c.unsupportedNumbers.map(esc).join(', ')}</strong> — 원문과 대조하십시오.`);
     if (c.uncitedRefs.length) lines.push(`「근거」에 적힌 ${c.uncitedRefs.map(esc).join(', ')} 는 검색된 조문에 없습니다 — 해당 조문을 직접 확인하십시오.`);
     return lines.length ? `<div class="chk"><p><strong>검증 표시</strong></p>${lines.map((l) => `<p>· ${l}</p>`).join('')}</div>` : '';
+}
+type Changed = { cite: string; amended: string | null; upcoming: string | null };
+type Guide = { answer: string; sources: { title: string; content: string }[]; changed: Changed[] };
+function guideChanged(cs: Changed[]) {
+    if (!cs.length) return '';
+    const rows = cs.map((c) => `<p>· ${esc(c.cite)}${c.amended ? ` — ${kdate(c.amended)} 개정` : ''}${c.upcoming ? ` · ${kdate(c.upcoming)} 변경 예정` : ''}</p>`).join('');
+    return `<div class="chk"><p><strong>가이드 발간(2022년 10월) 뒤 바뀐 조문</strong> — 아래 가이드 내용이 인용한 조문입니다. 현행 기준은 위 법령 답을 따르십시오.</p>${rows}</div>`;
 }
 function card(s: Src, upcoming: boolean) {
     const meta = upcoming
@@ -168,6 +184,13 @@ $('f').addEventListener('submit', async (e) => {
         last = { question, answer: d.answer, sources: d.sources, asOf: d.asOf };
         resetFb();
         $('pending').innerHTML = (d.pending ?? []).map(pendCard).join('');
+        const g: Guide | null = d.guide ?? null;
+        $('guide').hidden = !g;
+        if (g) {
+            $('gchanged').innerHTML = guideChanged(g.changed);
+            $('ganswer').innerHTML = renderAnswer(g.answer);
+            $('gsources').innerHTML = g.sources.map((s) => `<details class="src"><summary>${esc(s.title)}</summary><pre>${esc(s.content)}</pre></details>`).join('');
+        }
         $('sources').innerHTML = d.sources.map((s: Src) => card(s, false)).join('');
         $('upcoming').innerHTML = d.upcoming.map((s: Src) => card(s, true)).join('');
         $('upwrap').hidden = d.upcoming.length === 0;

@@ -13,4 +13,5 @@ with open(out, 'w', encoding='utf-8') as f:
     f.write('// ⚠️ 자동 생성 — 직접 고치지 말 것. 정본: radsafety-laws/scripts/_prompt.py (npm run sync-prompt)\n')
     f.write(f'export const SYS = {json.dumps(_prompt.SYS, ensure_ascii=False)};\n')
     f.write(f'export const SYS_UPCOMING = {json.dumps(_prompt.SYS_UPCOMING, ensure_ascii=False)};\n')
+    f.write(f'export const SYS_GUIDE = {json.dumps(_prompt.SYS_GUIDE, ensure_ascii=False)};\n')
 print('wrote', os.path.relpath(out))
