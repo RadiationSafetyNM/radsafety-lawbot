@@ -4,6 +4,7 @@ import { todayKST } from '../lib/ask';
 const today = todayKST();
 ---
 <Base>
+    <nav class="top"><strong>질문하기</strong><a href="/upcoming">개정 예정</a></nav>
     <h1>방사선안전 법령 질의</h1>
     <p class="sub">
         오늘 시행 중인 법령으로 답합니다. 바뀔 예정인 조문은 날짜와 함께 알려 드립니다.
@@ -44,6 +45,8 @@ const today = todayKST();
 </Base>
 
 <style>
+.top { display: flex; gap: 14px; font-size: .9rem; margin-bottom: 14px; }
+.top a { color: var(--accent); }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .asof { color: var(--sub); font-size: .9rem; display: flex; align-items: center; gap: 8px; }
 .asof input { width: auto; padding: 6px 8px; }

@@ -24,3 +24,13 @@ export async function insert(table: string, row: Record<string, unknown>): Promi
     });
     if (!r.ok) throw new Error(`DB 기록 실패 ${table} ${r.status}`);
 }
+
+/** 테이블 조회(PostgREST). params 는 select·필터 그대로. 서버 전용. */
+export async function select<T>(table: string, params: Record<string, string>): Promise<T[]> {
+    const key = env('SUPABASE_SECRET_KEY');
+    const r = await fetch(`${env('SUPABASE_URL').replace(/\/$/, '')}/rest/v1/${table}?${new URLSearchParams(params)}`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!r.ok) throw new Error(`DB 조회 실패 ${table} ${r.status}`);
+    return (await r.json()) as T[];
+}

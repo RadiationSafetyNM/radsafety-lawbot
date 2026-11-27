@@ -1,0 +1,91 @@
+---
+import Base from '../layouts/Base.astro';
+import { upcoming, type Entry, type Seg } from '../lib/upcoming';
+
+let data: Awaited<ReturnType<typeof upcoming>> | null = null, error = '';
+try { data = await upcoming(); } catch (e) { error = (e as Error).message; }
+
+const kdate = (d: string) => { const [y, m, dd] = d.split('-'); return `${y}년 ${+m}월 ${+dd}일`; };
+const dday = (d: string, today: string) => Math.round((Date.parse(d) - Date.parse(today)) / 86400000);
+const byDate = (es: Entry[]) => {
+    const m = new Map<string, Entry[]>();
+    for (const e of es) m.set(e.date, [...(m.get(e.date) ?? []), e]);
+    return [...m];
+};
+/** 같은 줄이 길게 이어지면 앞뒤 한 줄씩만 남기고 접는다. */
+const fold = (d: Seg[]) => d.filter((s, i) => s.t !== 'same' || d[i - 1]?.t !== 'same' || d[i + 1]?.t !== 'same');
+/** 짝지어진 줄은 달라진 낱말만, 통째로 새로 생기거나 없어지는 줄은 표시 없이 색 띠만. */
+const parts = (s: Seg) => s.parts ?? [{ s: s.text, c: false }];
+---
+<Base title="개정 예정 — 의료 방사선안전">
+    <nav class="top"><a href="/">질문하기</a><strong>개정 예정</strong></nav>
+    <h1>개정 예정 — 의료 방사선안전</h1>
+    <p class="sub">
+        공포되어 시행을 기다리는 조문 가운데 의료기관의 방사선안전과 관련된 것만 골랐습니다.
+        붉은 줄은 지금 조문, 푸른 줄은 바뀌는 조문입니다. 참고용이며 법적 효력이 없습니다.
+    </p>
+    {error && <p class="err">불러오지 못했습니다 — {error}</p>}
+    {data && <>
+        {!data.confirmed && <p class="chk">의료 관련 여부 분류는 검토 중입니다.</p>}
+        {data.medical.length === 0 && <p class="card">지금은 시행을 기다리는 의료 방사선안전 조문이 없습니다.</p>}
+        {byDate(data.medical).map(([date, es]) => <section>
+            <h2>{kdate(date)}부터 <span class="sub">({dday(date, data!.today)}일 뒤 · {es.length}건)</span></h2>
+            {es.map((e) => <details class="up">
+                <summary>{e.title} <span class={`tag ${e.kind === '개정' ? '' : 'hl'}`}>{e.kind}</span>{e.cls === 'new' && <span class="tag hl">분류 전</span>}
+                    {e.note && <p class="note">{e.note}</p>}</summary>
+                <div class="diff">{fold(e.diff).map((s) => <p class={s.t}>{parts(s).map((x) => x.c ? <mark>{x.s}</mark> : x.s)}</p>)}</div>
+            </details>)}
+        </section>)}
+
+        {data.pending.length > 0 && <section>
+            <h2>입법 진행 중 <span class="sub">(공포 전 — 확정 아님)</span></h2>
+            {data.pending.map((p) => <div class="card pend">
+                <p><strong>{p.title}</strong> ({p.law})</p>
+                <p>현행 {p.current} → 개정안 {p.proposed}</p>
+                <p class="small">{p.status}{p.expected_effective && ` · 시행 목표 ${kdate(p.expected_effective)}`} · {p.confidence}</p>
+                <p class="small">{p.timeline.map((t) => `${t.date} ${t.event}`).join(' · ')}
+                    {p.sources.map((u, i) => <> <a href={u} target="_blank" rel="noopener">출처{p.sources.length > 1 ? i + 1 : ''}</a></>)}</p>
+            </div>)}
+        </section>}
+
+        {data.other.length > 0 && <details class="more">
+            <summary>그 밖의 방사선 관련 개정 {data.other.length}건 <span class="sub">(의료기관과 거리가 있다고 분류)</span></summary>
+            {data.other.map((e) => <details class="up">
+                <summary>{e.title} <span class="tag">{kdate(e.date)}</span> <span class="tag">{e.kind}</span>
+                    {e.note && <p class="note">{e.note}</p>}</summary>
+                <div class="diff">{fold(e.diff).map((s) => <p class={s.t}>{parts(s).map((x) => x.c ? <mark>{x.s}</mark> : x.s)}</p>)}</div>
+            </details>)}
+        </details>}
+        <p class="sub foot">방사선과 무관한 시행예정 조문 묶음 {data.hidden}건은 표시하지 않았습니다. 기준일 {kdate(data.today)}.</p>
+    </>}
+</Base>
+
+<style>
+.top { display: flex; gap: 14px; font-size: .9rem; margin-bottom: 14px; }
+.top a { color: var(--accent); }
+h2 { font-size: 1rem; margin: 26px 0 8px; }
+h2 .sub, summary .sub { font-weight: 400; font-size: .85rem; }
+.chk { border-radius: 10px; padding: 8px 12px; font-size: .88rem; background: var(--note-bg);
+    border-left: 4px solid var(--note-line); color: var(--note-ink); }
+details.up { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+details.up summary { cursor: pointer; font-weight: 600; }
+.tag { display: inline-block; font-size: .75rem; font-weight: 600; color: var(--sub); border: 1px solid var(--line);
+    border-radius: 999px; padding: 0 8px; margin-left: 4px; }
+.tag.hl { color: var(--note-ink); background: var(--note-bg); border-color: var(--note-line); }
+.note { font-weight: 400; font-size: .92rem; margin: 6px 0 0; }
+.diff { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: .88rem; }
+.diff p { margin: 0 0 4px; padding: 2px 8px; white-space: pre-wrap; word-break: break-word; border-left: 3px solid transparent; }
+.diff .same { color: var(--sub); }
+.diff .del { border-left-color: #c0392b; background: color-mix(in srgb, #c0392b 9%, transparent); }
+.diff .add { border-left-color: #1f6fb5; background: color-mix(in srgb, #1f6fb5 10%, transparent); }
+.diff mark { background: transparent; color: inherit; }
+.diff .del mark { text-decoration: line-through; background: color-mix(in srgb, #c0392b 22%, transparent); }
+.diff .add mark { font-weight: 700; background: color-mix(in srgb, #1f6fb5 24%, transparent); }
+.pend { border-style: dashed; margin-bottom: 8px; }
+.pend p { margin: 4px 0; }
+.small { color: var(--sub); font-size: .85rem; }
+.pend a { color: var(--accent); }
+details.more { margin-top: 28px; }
+details.more > summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+.foot { margin-top: 24px; font-size: .82rem; }
+</style>
