@@ -49,9 +49,9 @@ const parts = (s: Seg) => s.parts ?? [{ s: s.text, c: false }];
         </section>}
 
         {data.other.length > 0 && <details class="more">
-            <summary>그 밖의 방사선 관련 개정 {data.other.length}건 <span class="sub">(의료기관과 거리가 있다고 분류)</span></summary>
+            <summary>그 밖의 방사선 관련 개정 {data.other.length}건 <span class="sub">(주제가 의료기관 범위 밖이거나 문구만 바뀌는 것)</span></summary>
             {data.other.map((e) => <details class="up">
-                <summary>{e.title} <span class="tag">{kdate(e.date)}</span> <span class="tag">{e.kind}</span>
+                <summary>{e.title} <span class="tag">{kdate(e.date)}</span> <span class="tag">{e.kind}</span>{e.topics.map((t) => <span class="tag">{t}</span>)}
                     {e.note && <p class="note">{e.note}</p>}</summary>
                 <div class="diff">{fold(e.diff).map((s) => <p class={s.t}>{parts(s).map((x) => x.c ? <mark>{x.s}</mark> : x.s)}</p>)}</div>
             </details>)}
