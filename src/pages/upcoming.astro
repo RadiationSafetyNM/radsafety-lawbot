@@ -1,9 +1,14 @@
 ---
 import Base from '../layouts/Base.astro';
 import { upcoming, type Entry, type Seg } from '../lib/upcoming';
+import { prenotice, type Notice } from '../lib/prenotice';
 
 let data: Awaited<ReturnType<typeof upcoming>> | null = null, error = '';
 try { data = await upcoming(); } catch (e) { error = (e as Error).message; }
+const pre: { main: Notice[]; other: Notice[] } = data ? await prenotice(data.today) : { main: [], other: [] };
+const md = (d: string) => { const [, m, dd] = d.split('-'); return `${+m}.${+dd}.`; };
+/** 법령안·이유서 파일만(같은 문서의 hwpx·pdf 가 함께 오면 pdf 를 먼저). */
+const files = (n: Notice) => [...n.files].sort((a, b) => Number(b.name.endsWith('.pdf')) - Number(a.name.endsWith('.pdf'))).slice(0, 4);
 
 const kdate = (d: string) => { const [y, m, dd] = d.split('-'); return `${y}년 ${+m}월 ${+dd}일`; };
 const dday = (d: string, today: string) => Math.round((Date.parse(d) - Date.parse(today)) / 86400000);
@@ -53,6 +58,27 @@ const parts = (s: Seg) => s.parts ?? [{ s: s.text, c: false }];
             </div>)}
         </section>}
 
+        {pre.main.length > 0 && <section>
+            <h2>입법예고·행정예고 <span class="sub">(공포 전 — 확정 아님 · 국민참여입법센터 자동 수집, 주제 분류는 낱말 규칙)</span></h2>
+            {pre.main.map((n) => <details class="up pre">
+                <summary>{n.title}
+                    <span class="tag">{n.kind}</span>
+                    {n.open ? <span class="tag hl">의견수렴 중 ~{md(n.end)}</span> : <span class="tag">예고 {md(n.start)}~{md(n.end)} 종료</span>}
+                    {n.stage && n.stage !== n.kind && <span class="tag">{n.stage} {md(n.stage_date)}</span>}
+                    <p class="note small">{n.agency}{n.dept && ` ${n.dept}`} · 공고 {n.notice_no}</p></summary>
+                <div class="diff">
+                    {n.summary && <p class="same">{n.summary}</p>}
+                    <p><a href={n.link} target="_blank" rel="noopener">예고 원문</a>
+                        {files(n).map((f) => <> · <a href={f.url} target="_blank" rel="noopener">{f.name.replace(/^\(([^)]*)\).*(\.[a-z]+)$/, '$1$2')}</a></>)}</p>
+                </div>
+            </details>)}
+        </section>}
+        {pre.other.length > 0 && <details class="more">
+            <summary>그 밖의 예고 {pre.other.length}건 <span class="sub">(원자로·핵연료·방재 등 — 의료기관 범위 밖으로 분류된 것)</span></summary>
+            <div class="hid"><ul>{pre.other.map((n) => <li><a href={n.link} target="_blank" rel="noopener">{n.title}</a>
+                <span class="sub"> · {n.agency} · {n.kind} {md(n.start)}~{md(n.end)}{n.open && ' (의견수렴 중)'}</span></li>)}</ul></div>
+        </details>}
+
         {data.other.length > 0 && <details class="more">
             <summary>그 밖의 방사선 관련 개정 {data.other.length}건 <span class="sub">(주제가 의료기관 범위 밖이거나 문구만 바뀌는 것)</span></summary>
             {data.other.map((e) => <details class="up">
@@ -92,6 +118,9 @@ details.up summary { cursor: pointer; font-weight: 600; }
 .diff .del mark { text-decoration: line-through; background: color-mix(in srgb, #c0392b 22%, transparent); }
 .diff .add mark { font-weight: 700; background: color-mix(in srgb, #1f6fb5 24%, transparent); }
 .pend { border-style: dashed; margin-bottom: 8px; }
+details.pre { border-style: dashed; }
+details.pre a, .hid a { color: var(--accent); }
+details.pre .diff .same { color: inherit; }
 .pend p { margin: 4px 0; }
 .small { color: var(--sub); font-size: .85rem; }
 .pend a { color: var(--accent); }
