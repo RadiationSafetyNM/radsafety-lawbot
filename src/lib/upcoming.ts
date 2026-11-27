@@ -17,7 +17,9 @@ export type Entry = {
     key: string; date: string; title: string; kind: '개정' | '신설' | '삭제';
     cls: 'medical' | 'other' | 'new'; topics: string[]; note: string; diff: Seg[];
 };
-export type Upcoming = { today: string; confirmed: boolean; medical: Entry[]; other: Entry[]; hidden: number; pending: Pending[] };
+/** 표시하지 않은 묶음 — 제목만. 걸러 낸 것을 사람이 훑어볼 수 있게 남긴다. */
+export type Hidden = { date: string; law: string; title: string; why: '방사선 낱말 없음' | '문구·꼬리표만 바뀜' };
+export type Upcoming = { today: string; confirmed: boolean; medical: Entry[]; other: Entry[]; hidden: Hidden[]; pending: Pending[] };
 
 const KW = ['방사선', '방사성', '방사능', '핵의학', '피폭', '선량', '동위원소', '특수의료장비', '엑스선'];
 const LAW_KW = ['방사선', '원자력'];           // 법령 이름이 이러면 본문 낱말과 무관하게 후보
@@ -110,16 +112,21 @@ export async function upcoming(): Promise<Upcoming> {
         items: Record<string, { topics: string[]; minor?: boolean; note?: string }> };
     const marks = rv.items, inScope = new Set(rv.scopes[SCOPE] ?? []);
     const medical: Entry[] = [], other: Entry[] = [];
-    let hidden = 0;
+    const hidden: Hidden[] = [];
     for (const [key, g] of groups) {
         const text = [...g.old, ...g.neu].map((r) => r.content).join('\n');
-        if (!KW.some((k) => text.includes(k)) && !LAW_KW.some((k) => g.law.includes(k))) { hidden++; continue; }
+        const name = g.unit.startsWith('별표') ? `${g.unit}${g.at ? ` — ${g.at}` : ''}` : `${g.unit}${g.at ? `(${g.at})` : ''}`;
+        if (!KW.some((k) => text.includes(k)) && !LAW_KW.some((k) => g.law.includes(k))) {
+            hidden.push({ date: g.date, law: g.law, title: name, why: '방사선 낱말 없음' }); continue;
+        }
         const d = diff(lines(g.old), lines(g.neu));
-        if (!d.some((s) => s.t !== 'same')) { hidden++; continue; }     // 꼬리표·머리줄만 다른 판본
+        if (!d.some((s) => s.t !== 'same')) {     // 꼬리표·머리줄만 다른 판본
+            hidden.push({ date: g.date, law: g.law, title: name, why: '문구·꼬리표만 바뀜' }); continue;
+        }
         const mk = marks[key];
         const e: Entry = {
             key, date: g.date, diff: d, note: mk?.note ?? '', topics: mk?.topics ?? [],
-            title: g.unit.startsWith('별표') ? `${g.law} ${g.unit}${g.at ? ` — ${g.at}` : ''}` : `${g.law} ${g.unit}${g.at ? `(${g.at})` : ''}`,
+            title: `${g.law} ${name}`,
             kind: !g.old.length ? '신설' : !g.neu.length ? '삭제' : '개정',
             cls: !mk ? 'new' : !mk.minor && mk.topics.some((t) => inScope.has(t)) ? 'medical' : 'other',
         };
@@ -128,6 +135,7 @@ export async function upcoming(): Promise<Upcoming> {
     const by = (a: Entry, b: Entry) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, 'ko', { numeric: true });
     return {
         today, confirmed: (review as { confirmed: boolean }).confirmed,
-        medical: medical.sort(by), other: other.sort(by), hidden, pending: tracker as Pending[],
+        medical: medical.sort(by), other: other.sort(by), pending: tracker as Pending[],
+        hidden: hidden.sort((a, b) => a.law.localeCompare(b.law, 'ko') || a.date.localeCompare(b.date) || a.title.localeCompare(b.title, 'ko', { numeric: true })),
     };
 }

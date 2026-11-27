@@ -12,6 +12,11 @@ const byDate = (es: Entry[]) => {
     for (const e of es) m.set(e.date, [...(m.get(e.date) ?? []), e]);
     return [...m];
 };
+const byLaw = <T extends { law: string }>(hs: T[]) => {
+    const m = new Map<string, T[]>();
+    for (const h of hs) m.set(h.law, [...(m.get(h.law) ?? []), h]);
+    return [...m];
+};
 /** 같은 줄이 길게 이어지면 앞뒤 한 줄씩만 남기고 접는다. */
 const fold = (d: Seg[]) => d.filter((s, i) => s.t !== 'same' || d[i - 1]?.t !== 'same' || d[i + 1]?.t !== 'same');
 /** 짝지어진 줄은 달라진 낱말만, 통째로 새로 생기거나 없어지는 줄은 표시 없이 색 띠만. */
@@ -26,7 +31,7 @@ const parts = (s: Seg) => s.parts ?? [{ s: s.text, c: false }];
     </p>
     {error && <p class="err">불러오지 못했습니다 — {error}</p>}
     {data && <>
-        {!data.confirmed && <p class="chk">의료 관련 여부 분류는 검토 중입니다.</p>}
+        {!data.confirmed && <p class="chk">주제 분류는 검토 중입니다.</p>}
         {data.medical.length === 0 && <p class="card">지금은 시행을 기다리는 의료 방사선안전 조문이 없습니다.</p>}
         {byDate(data.medical).map(([date, es]) => <section>
             <h2>{kdate(date)}부터 <span class="sub">({dday(date, data!.today)}일 뒤 · {es.length}건)</span></h2>
@@ -56,7 +61,12 @@ const parts = (s: Seg) => s.parts ?? [{ s: s.text, c: false }];
                 <div class="diff">{fold(e.diff).map((s) => <p class={s.t}>{parts(s).map((x) => x.c ? <mark>{x.s}</mark> : x.s)}</p>)}</div>
             </details>)}
         </details>}
-        <p class="sub foot">방사선과 무관한 시행예정 조문 묶음 {data.hidden}건은 표시하지 않았습니다. 기준일 {kdate(data.today)}.</p>
+        {data.hidden.length > 0 && <details class="more">
+            <summary>표시하지 않은 시행예정 조문 {data.hidden.length}건 <span class="sub">(제목만 — 빠뜨린 것이 없는지 확인용)</span></summary>
+            {byLaw(data.hidden).map(([law, hs]) => <div class="hid"><p><strong>{law}</strong> <span class="sub">{hs.length}건</span></p>
+                <ul>{hs.map((h) => <li>{h.title} <span class="sub">· {kdate(h.date)}{h.why !== '방사선 낱말 없음' && ` · ${h.why}`}</span></li>)}</ul></div>)}
+        </details>}
+        <p class="sub foot">기준일 {kdate(data.today)}.</p>
     </>}
 </Base>
 
@@ -87,5 +97,8 @@ details.up summary { cursor: pointer; font-weight: 600; }
 .pend a { color: var(--accent); }
 details.more { margin-top: 28px; }
 details.more > summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+.hid p { margin: 12px 0 4px; }
+.hid ul { margin: 0; padding-left: 20px; font-size: .88rem; }
+.hid .sub { font-size: .8rem; }
 .foot { margin-top: 24px; font-size: .82rem; }
 </style>
