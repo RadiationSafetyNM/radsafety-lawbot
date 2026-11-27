@@ -21,6 +21,11 @@ const UP_CAP = 6000;
 const GUIDE_K = 3;
 const GUIDE_MIN = 0.7;
 // 차이 한 줄을 위해 넘기는 현행 조문 — 개정된 인용 조문 중 앞의 몇 개만
+// 편(Part)으로 거르기 전 후보 수. 가이드는 수검자 종류별 세 편이고 같은 절 제목이 편마다 되풀이된다 —
+// 편을 가리지 않으면 병원(허가사용자) 질문에 업무대행자 편 조각이 섞인다. 질문 낱말로 한 편만 고른다(_ask.py 와 같다).
+const GUIDE_POOL = 10;
+const PARTS: [string, string[]][] = [['Part 2', ['업무대행']], ['Part 3', ['운반', '포장', '운송']]];
+const guidePart = (q: string) => PARTS.find(([, words]) => words.some((w) => q.includes(w)))?.[0] ?? 'Part 1';
 const DIFF_MAX = 2;
 const DIFF_CAP = 5000;
 
@@ -171,8 +176,10 @@ function citedOnly<T extends { title: string }>(sources: T[], answer: string): T
 /** 지침 답. 관련 조각이 없으면 null(둘째 칸을 띄우지 않는다). 법령 답과 독립이며, 실패해도 법령 답은 나간다. */
 async function askGuide(question: string, vec: string, today: string): Promise<Guide | null> {
     try {
-        const hits = (await rpc<GuideRow[]>('lawbot_guide_match', { query_embedding: vec, match_count: GUIDE_K }))
-            .filter((g) => g.similarity >= GUIDE_MIN);
+        const part = guidePart(question);
+        const hits = (await rpc<GuideRow[]>('lawbot_guide_match', { query_embedding: vec, match_count: GUIDE_POOL }))
+            .filter((g) => g.similarity >= GUIDE_MIN && String(g.metadata.part ?? '').startsWith(part))
+            .slice(0, GUIDE_K);
         if (!hits.length) return null;
         const body = hits.map((g, i) => `[지침 ${i + 1}] ${guideTitle(g)}\n${g.content.slice(0, CAP)}`).join('\n\n---\n\n');
         const changed: Changed[] = [];
