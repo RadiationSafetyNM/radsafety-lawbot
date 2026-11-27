@@ -134,7 +134,8 @@ function renderAnswer(text: string) {
     return text.split(/\n{2,}|\n(?=※|「근거」|「지침 근거」)/).map((para) => {
         const t = para.trim();
         if (!t) return '';
-        const html = esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        const html = esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^(\s*)[*-] /gm, '$1• ');   // 목록 기호(* -)를 글머리표로
         const cls = t.startsWith('※') ? ' class="note"' : t.startsWith('「근거」') || t.startsWith('「지침 근거」') ? ' class="basis"' : '';
         return `<p${cls}>${html}</p>`;
     }).join('');

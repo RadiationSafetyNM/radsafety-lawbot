@@ -2,8 +2,8 @@
 // 기준 구현은 radsafety-laws/scripts/_ask.py 다. 아래 상수·순서·문자열은 그 파일과 같아야 한다 —
 // 임베딩 규약(모델·taskType·차원·재정규화)이 어긋나면 에러 없이 검색 순위만 나빠진다.
 import { env } from './env';
-import { rpc } from './db';
-import { SYS, SYS_UPCOMING, SYS_GUIDE } from './prompt';
+import { rpc, select } from './db';
+import { SYS, SYS_UPCOMING, SYS_GUIDE, SYS_GUIDE_DIFF } from './prompt';
 import { pending, type Pending } from './tracker';
 import { expand } from './query';
 import { check, type Checks } from './verify';
@@ -20,6 +20,9 @@ const UP_CAP = 6000;
 // 잠정값(2026-11-27, _ask.py 와 같다). 지침 평가 문항으로 다시 정할 것.
 const GUIDE_K = 3;
 const GUIDE_MIN = 0.7;
+// 차이 한 줄을 위해 넘기는 현행 조문 — 개정된 인용 조문 중 앞의 몇 개만
+const DIFF_MAX = 2;
+const DIFF_CAP = 5000;
 
 type Row = {
     chunk_id: string;
@@ -147,21 +150,46 @@ function guideTitle(g: GuideRow): string {
     return `수검 가이드(2022) ${crumbs.join(' > ')} (p.${m.printed_pages ?? '?'})`;
 }
 
+/** '원자력안전법 시행규칙 제121조' → 기준일 현행 본문. _ask.py 의 current_article() 과 같은 조회. */
+async function currentArticle(cite: string, today: string): Promise<string> {
+    const i = cite.lastIndexOf(' ');
+    const rows = await select<{ content: string }>('lawbot_chunks', {
+        select: 'chunk_id,content', 'metadata->>law_title': `eq.${cite.slice(0, i)}`, 'metadata->>article': `eq.${cite.slice(i + 1)}`,
+        'metadata->>document_type': 'eq.law', effective_from: `lte.${today}`,
+        or: `(effective_to.is.null,effective_to.gt.${today})`, order: 'chunk_id',
+    });
+    return rows.map((r) => r.content).join('\n').slice(0, DIFF_CAP);
+}
+
+/** 「지침 근거」 줄이 가리킨 쪽(p.N)의 조각만 남긴다. 하나도 못 맞추면 전부 둔다. */
+function citedOnly<T extends { title: string }>(sources: T[], answer: string): T[] {
+    const line = answer.split('\n').find((l) => l.trim().startsWith('「지침 근거」')) ?? '';
+    const keep = sources.filter((s) => { const m = /\(p\.[^)]*\)$/.exec(s.title); return !!m && !!line && line.includes(m[0]); });
+    return keep.length ? keep : sources;
+}
+
 /** 지침 답. 관련 조각이 없으면 null(둘째 칸을 띄우지 않는다). 법령 답과 독립이며, 실패해도 법령 답은 나간다. */
-async function askGuide(question: string, vec: string): Promise<Guide | null> {
+async function askGuide(question: string, vec: string, today: string): Promise<Guide | null> {
     try {
         const hits = (await rpc<GuideRow[]>('lawbot_guide_match', { query_embedding: vec, match_count: GUIDE_K }))
             .filter((g) => g.similarity >= GUIDE_MIN);
         if (!hits.length) return null;
         const body = hits.map((g, i) => `[지침 ${i + 1}] ${guideTitle(g)}\n${g.content.slice(0, CAP)}`).join('\n\n---\n\n');
-        const answer = await generate(`${SYS_GUIDE}\n\n[지침 자료]\n${body}\n\n[질문]\n${question}`);
-        // 모델이 관련 없다고 본 경우 — 빈 칸을 띄우지 않는다(_ask.py 와 같은 규칙)
-        if (answer.includes('「지침 근거」 없음') || answer.slice(0, 40).includes('해당 내용이 없습니다')) return null;
         const changed: Changed[] = [];
         for (const g of hits)
             for (const c of g.metadata.cites_changed ?? [])
                 if (!changed.some((x) => x.cite === c.cite)) changed.push(c);
-        return { answer, changed, sources: hits.map((g) => ({ title: guideTitle(g), content: g.content })) };
+        // 개정된 인용 조문의 현행 본문 — 차이 한 줄(※ 현행과 다른 점)을 위해서만 넘긴다
+        const amended = changed.filter((c) => c.amended).map((c) => c.cite).slice(0, DIFF_MAX);
+        const cur = (await Promise.all(amended.map(async (c) => [c, await currentArticle(c, today)] as const))).filter(([, t]) => t);
+        let prompt = SYS_GUIDE;
+        if (cur.length) prompt += `\n${SYS_GUIDE_DIFF}`;
+        prompt += `\n\n[지침 자료]\n${body}`;
+        if (cur.length) prompt += '\n\n[현행 조문]\n' + cur.map(([c, t]) => `[현행] ${c}\n${t}`).join('\n\n---\n\n');
+        const answer = await generate(`${prompt}\n\n[질문]\n${question}`);
+        // 모델이 관련 없다고 본 경우 — 빈 칸을 띄우지 않는다(_ask.py 와 같은 규칙)
+        if (answer.includes('「지침 근거」 없음') || answer.slice(0, 40).includes('해당 내용이 없습니다')) return null;
+        return { answer, changed, sources: citedOnly(hits.map((g) => ({ title: guideTitle(g), content: g.content })), answer) };
     } catch (e) {
         console.error('[lawbot] 지침 답 실패', e);
         return null;
@@ -175,7 +203,7 @@ export async function ask(question: string, asOf?: string): Promise<Answer> {
     const up = hits.length
         ? (await rpc<Row[]>('lawbot_upcoming', { chunk_ids: hits.map((h) => h.chunk_id), as_of: when })).slice(0, UP_MAX)
         : [];
-    const guideP = askGuide(question, vec);      // 법령 답과 나란히 만든다(기다리는 시간을 겹친다)
+    const guideP = askGuide(question, vec, when);      // 법령 답과 나란히 만든다(기다리는 시간을 겹친다)
     const answer = await generate(buildPrompt(question, hits, up, when));
     return {
         guide: await guideP,                     // 지침 답(없으면 null) — 법령 답과 섞지 않는다
